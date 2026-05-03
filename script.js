@@ -2615,86 +2615,123 @@ function openPrisonSubpage(clickedCell) {
     egg.className = 'egg';
     stageWrapper.appendChild(egg);
 
-    // 5 shells × 55 particles = 275 — heavily optimized for performance
-    for (let i = -1; i <= 3; i++) {
-        const stage = document.createElement('div');
-        stage.className = 'stage';
-        egg.appendChild(stage);
+    // ─── CANVAS-BASED SPHERE (replaces 595-particle DOM tree for performance) ───
+    // Build particle data once. Render every frame to a single canvas with one
+    // rotation update. ~600 fillText calls/frame is far cheaper than ~600 DOM
+    // elements with 2 active CSS animations each.
+    const sphereCanvas = document.createElement('canvas');
+    sphereCanvas.className = 'sphere-canvas';
+    sphereCanvas.style.cssText = 'position:absolute; inset:0; z-index:1; pointer-events:none;';
+    container.insertBefore(sphereCanvas, container.firstChild);
+    container.insertBefore(stageWrapper, container.firstChild);
+    stageWrapper.style.display = 'none'; // legacy DOM kept for layout, hidden
 
-        for (let j = 1; j <= 55; j++) {
-            const circle = document.createElement('div');
-            circle.className = 'circle';
-            
-            const xNode = document.createElement('div');
-            xNode.className = 'x';
-            
-            const yNode = document.createElement('div');
-            yNode.className = 'y';
-            
-            const innerNode = document.createElement('div');
-            innerNode.className = 'inner';
-            
-            // Optimized particle count per shell while preserving deep dense layers
-            const size = Math.floor(Math.pow(Math.random(), 3) * 20) + 6;
-            
-            // Inner base transform tied to CSS variables for ultra-performant sync throbbing
-            const originalRadius = i * 60 + 140;
-            const randomizedBeatScaleAmp = (Math.random() * 15 + 5).toFixed(2); // unique pulse amplitudes
-            innerNode.style.setProperty('--beatAmp', randomizedBeatScaleAmp);
-            // Default load state includes the calc() CSS function relying on Javascript provided --beat variable
-            innerNode.style.transform = `translate(-50%, -50%) translateZ(${originalRadius}px) scale(calc(1 + var(--beat, 0) * var(--beatAmp)))`;
-            innerNode.style.fontSize = `${size}px`; 
-            innerNode.dataset.origZ = originalRadius;
-            innerNode.dataset.pullMult = 0.5 + Math.random() * 0.5;
-            
-            // X and Y Animations
-            const durX = Math.floor(Math.random() * 20000) + 10000;
-            const delX = -(Math.floor(Math.random() * 3000));
-            xNode.style.animation = `rotateX ${durX}ms ${delX}ms linear infinite`;
+    const sphereCtx = sphereCanvas.getContext('2d', { alpha: true });
+    const sphereDPR = Math.min(2, window.devicePixelRatio || 1);
+    let sphereVPW = window.innerWidth, sphereVPH = window.innerHeight;
+    function resizeSphereCanvas() {
+        sphereVPW = window.innerWidth; sphereVPH = window.innerHeight;
+        sphereCanvas.width = sphereVPW * sphereDPR;
+        sphereCanvas.height = sphereVPH * sphereDPR;
+        sphereCanvas.style.width = sphereVPW + 'px';
+        sphereCanvas.style.height = sphereVPH + 'px';
+        sphereCtx.setTransform(sphereDPR, 0, 0, sphereDPR, 0, 0);
+    }
+    resizeSphereCanvas();
+    window.addEventListener('resize', resizeSphereCanvas);
 
-            const durY = Math.floor(Math.random() * 20000) + 10000;
-            const delY = -(Math.floor(Math.random() * 3000));
-            yNode.style.animation = `rotateY ${durY}ms ${delY}ms linear infinite`;
-
-            // "0" and "1" logic
-            const particleValue = Math.random() > 0.5 ? "0" : "1";
-            innerNode.textContent = particleValue;
-
-            const isCore = (i <= 0);
-            const isAmbient = (j > 45); // Everything after 45 is extra faint noise layer
-            const isRed = !isAmbient && (isCore ? (Math.random() > 0.3) : (Math.random() > 0.8));
-            
-            if (isRed) {
-                innerNode.classList.add('red-particle'); // For elastic tension tracking
-                if (isCore) {
-                    innerNode.style.color = `rgba(220, 20, 60, 0.55)`;
-                } else {
-                    innerNode.style.color = `rgba(220, 20, 60, 0.95)`;
-                }
-                // Removed: center-ray div, hologram trail divs, text-shadow blur
-                // (most expensive paint operations — cut for perf)
-            } else if (isAmbient) {
-                innerNode.classList.add('ambient-particle');
-                innerNode.style.fontSize = `${Math.floor(Math.random() * 4) + 6}px`;
-                innerNode.style.color = `rgba(255, 255, 255, 0.2)`;
-                innerNode.style.textShadow = 'none';
-                innerNode.style.animation = `ambientBlink ${Math.random() * 3 + 1.5}s infinite alternate ease-in-out`;
-            } else {
-                innerNode.style.color = `rgba(255, 255, 255, 0.9)`; // Default white for dark UI
-                innerNode.style.textShadow = `0 0 4px rgba(255, 255, 255, 0.3)`; // Subtle baseline glow
-            }
-
-            // (Particle mitosis removed in favor of global sphere split)
-
-            yNode.appendChild(innerNode);
-            xNode.appendChild(yNode);
-            circle.appendChild(xNode);
-            stage.appendChild(circle);
+    // Build particles once. Spherical distribution across 5 shells.
+    const sphereParticles = [];
+    const SHELL_RANGE = [-1, 0, 1, 2, 3];
+    const PARTICLES_PER_SHELL = 120;
+    for (const shellI of SHELL_RANGE) {
+        const radius = shellI * 60 + 140;
+        const isCoreShell = shellI <= 0;
+        for (let j = 0; j < PARTICLES_PER_SHELL; j++) {
+            // Even spherical distribution (Marsaglia method)
+            const theta = Math.random() * Math.PI * 2;
+            const phiCos = 1 - 2 * Math.random();
+            const phiSin = Math.sqrt(1 - phiCos * phiCos);
+            const isRed = isCoreShell ? Math.random() > 0.35 : Math.random() > 0.78;
+            sphereParticles.push({
+                x: radius * phiSin * Math.cos(theta),
+                y: radius * phiSin * Math.sin(theta),
+                z: radius * phiCos,
+                v: Math.random() > 0.5 ? '0' : '1',
+                size: 8 + Math.floor(Math.pow(Math.random(), 3) * 14),
+                isRed,
+                isCore: isCoreShell,
+            });
         }
     }
-    
-    // Insert behind everything
-    container.insertBefore(stageWrapper, container.firstChild);
+    sphereParticles.sort((a, b) => 0); // randomize render order
+
+    let sphereAngle = 0;
+    let sphereAngleX = 0;
+    let sphereRafId;
+    function sphereFrame() {
+        sphereRafId = requestAnimationFrame(sphereFrame);
+        const isDark = container.classList.contains('is-dark');
+        const bg = isDark ? '#050505' : '#f4f4f4';
+        sphereCtx.fillStyle = bg;
+        sphereCtx.fillRect(0, 0, sphereVPW, sphereVPH);
+
+        const cx = sphereVPW / 2;
+        const cy = sphereVPH / 2;
+        const cosY = Math.cos(sphereAngle), sinY = Math.sin(sphereAngle);
+        const cosX = Math.cos(sphereAngleX), sinX = Math.sin(sphereAngleX);
+        const persp = 800;
+
+        sphereCtx.textAlign = 'center';
+        sphereCtx.textBaseline = 'middle';
+
+        // Sort by depth (z) for correct over-draw — back to front
+        const projected = [];
+        for (let i = 0; i < sphereParticles.length; i++) {
+            const p = sphereParticles[i];
+            // Rotate around Y
+            let rx = p.x * cosY - p.z * sinY;
+            let rz = p.x * sinY + p.z * cosY;
+            const ry = p.y;
+            // Rotate around X
+            const rry = ry * cosX - rz * sinX;
+            const rrz = ry * sinX + rz * cosX;
+            const scale = persp / (persp + rrz);
+            projected.push({
+                px: cx + rx * scale,
+                py: cy + rry * scale,
+                z: rrz,
+                scale,
+                p,
+            });
+        }
+        projected.sort((a, b) => b.z - a.z);
+
+        for (let i = 0; i < projected.length; i++) {
+            const { px, py, z, scale, p } = projected[i];
+            const opacity = Math.max(0.15, Math.min(1, scale));
+            const fontSize = Math.max(4, p.size * scale * 0.9);
+            sphereCtx.font = `${fontSize}px JetBrains Mono, monospace`;
+            if (p.isRed) {
+                sphereCtx.fillStyle = `rgba(220, 20, 60, ${(p.isCore ? 0.55 : 0.95) * opacity})`;
+            } else if (isDark) {
+                sphereCtx.fillStyle = `rgba(255, 255, 255, ${0.85 * opacity})`;
+            } else {
+                sphereCtx.fillStyle = `rgba(20, 20, 20, ${0.75 * opacity})`;
+            }
+            sphereCtx.fillText(p.v, px, py);
+        }
+
+        sphereAngle += 0.0035;
+        sphereAngleX += 0.0012;
+    }
+    sphereRafId = requestAnimationFrame(sphereFrame);
+
+    // Cleanup hook (back button)
+    backBtn.addEventListener('click', () => {
+        cancelAnimationFrame(sphereRafId);
+        window.removeEventListener('resize', resizeSphereCanvas);
+    });
     
     // Prevent disruptive native text selection and native ghost dragging
     container.style.userSelect = 'none';
