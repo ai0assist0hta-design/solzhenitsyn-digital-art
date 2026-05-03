@@ -8,9 +8,14 @@
     <link rel="stylesheet" href="style.css?v=6">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <!-- Trimmed font weights (was 5 → now 3) — smaller font payload -->
     <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400&family=Noto+Sans:wght@400;900&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=JetBrains+Mono:wght@400&family=Noto+Sans:wght@900&display=swap"
         rel="stylesheet">
+    <!-- Pre-warm Three.js CDN so dynamic imports are fast when user enters Theme 1 -->
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <!-- Prefetch heavy 3D model in background while user browses main grid -->
+    <link rel="prefetch" href="models/Pole.glb" as="fetch" crossorigin="anonymous">
 </head>
 
 <body>
