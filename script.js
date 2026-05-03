@@ -2634,16 +2634,13 @@ function openPrisonSubpage(clickedCell) {
             const innerNode = document.createElement('div');
             innerNode.className = 'inner';
             
-            // Optimized particle count per shell while preserving deep dense layers
             const size = Math.floor(Math.pow(Math.random(), 3) * 20) + 6;
-            
-            // Inner base transform tied to CSS variables for ultra-performant sync throbbing
+            // Static transform — pulse/heartbeat removed for performance (was the
+            // single biggest cost: every frame mutated --beat which forced all
+            // ~275 particles to recalculate transforms simultaneously).
             const originalRadius = i * 60 + 140;
-            const randomizedBeatScaleAmp = (Math.random() * 15 + 5).toFixed(2); // unique pulse amplitudes
-            innerNode.style.setProperty('--beatAmp', randomizedBeatScaleAmp);
-            // Default load state includes the calc() CSS function relying on Javascript provided --beat variable
-            innerNode.style.transform = `translate(-50%, -50%) translateZ(${originalRadius}px) scale(calc(1 + var(--beat, 0) * var(--beatAmp)))`;
-            innerNode.style.fontSize = `${size}px`; 
+            innerNode.style.transform = `translate(-50%, -50%) translateZ(${originalRadius}px)`;
+            innerNode.style.fontSize = `${size}px`;
             innerNode.dataset.origZ = originalRadius;
             innerNode.dataset.pullMult = 0.5 + Math.random() * 0.5;
             
@@ -2846,47 +2843,26 @@ function openPrisonSubpage(clickedCell) {
         // Elastic drag tension easing
         curPull += (targetPull - curPull) * 0.1;
         
-        // Target the single egg layer
+        // Target the single egg layer (pulse removed for performance)
         if (egg) {
-            // Heartbeat pulse calculation - heavily reduced amplitude (0.06) and speed (0.0008)
-            const beat = Math.pow(Math.sin(time * 0.0008), 32) * 0.06;
             baseZoom += (targetZoom - baseZoom) * 0.1;
-            const pulseScale = (1.45 + beat) * baseZoom; // 45% mass + interactive zoom footprint
-            
-            // Feed the heartbeat value directly to a CSS Variable on the container!
-            // All 240+ inner data particles will automatically recalculate their scale using GPU offloading (`calc(1 + var(--beat) * var(--beatAmp))`)
-            egg.style.setProperty('--beat', beat);
-            egg.style.transform = `scale(${pulseScale}) rotateX(${curRotX}deg) rotateY(${curRotY}deg)`;
-            
-            // Only update DOM if there's an actual interactive string pull happening
+            const baseScale = 1.45 * baseZoom;
+            egg.style.transform = `scale(${baseScale}) rotateX(${curRotX}deg) rotateY(${curRotY}deg)`;
+
+            // Drag interaction — only mutate red particles when actually being pulled
             if (curPull > 0.5 || targetPull > 0) {
                 document.querySelectorAll('#prison-subpage .red-particle').forEach(rp => {
                     const origZ = parseFloat(rp.dataset.origZ);
                     const mult = parseFloat(rp.dataset.pullMult);
                     const stretch = curPull * mult;
-                    
-                    const dynamicScaleBoost = 1 + (stretch / 180);
-                    
-                    rp.style.transform = `translate(-50%, -50%) translateZ(${origZ + stretch}px) scale(calc((1 + var(--beat) * var(--beatAmp)) * ${dynamicScaleBoost}))`;
-                    
-                    // Dynamically stretch the ray back to the core
-                    const ray = rp.querySelector('.center-ray');
-                    if (ray) {
-                        const baseH = Math.min(120, origZ);
-                        ray.style.height = `${baseH + stretch}px`;
-                    }
+                    const boost = 1 + (stretch / 180);
+                    rp.style.transform = `translate(-50%, -50%) translateZ(${origZ + stretch}px) scale(${boost})`;
                 });
             } else if (Math.abs(curPull) <= 0.5 && curPull !== 0) {
                 curPull = 0;
                 document.querySelectorAll('#prison-subpage .red-particle').forEach(rp => {
                     const origZ = parseFloat(rp.dataset.origZ);
-                    rp.style.transform = `translate(-50%, -50%) translateZ(${origZ}px) scale(calc(1 + var(--beat) * var(--beatAmp)))`;
-                    
-                    const ray = rp.querySelector('.center-ray');
-                    if (ray) {
-                        const baseH = Math.min(120, origZ);
-                        ray.style.height = `${baseH}px`;
-                    }
+                    rp.style.transform = `translate(-50%, -50%) translateZ(${origZ}px)`;
                 });
             }
         }
