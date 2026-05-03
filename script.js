@@ -2615,14 +2615,13 @@ function openPrisonSubpage(clickedCell) {
     egg.className = 'egg';
     stageWrapper.appendChild(egg);
 
-    // Reproduce the SCSS Loops in JS
-    // 7 shells × 85 particles = 595 — denser than original (390) but lighter than the 880 spike
-    for (let i = -2; i <= 4; i++) {
+    // 5 shells × 55 particles = 275 — heavily optimized for performance
+    for (let i = -1; i <= 3; i++) {
         const stage = document.createElement('div');
         stage.className = 'stage';
         egg.appendChild(stage);
 
-        for (let j = 1; j <= 85; j++) {
+        for (let j = 1; j <= 55; j++) {
             const circle = document.createElement('div');
             circle.className = 'circle';
             
@@ -2668,43 +2667,15 @@ function openPrisonSubpage(clickedCell) {
             if (isRed) {
                 innerNode.classList.add('red-particle'); // For elastic tension tracking
                 if (isCore) {
-                    innerNode.style.color = `rgba(220, 20, 60, 0.45)`;
-                    innerNode.style.textShadow = `0 0 3px rgba(220, 20, 60, 0.2)`;
+                    innerNode.style.color = `rgba(220, 20, 60, 0.55)`;
                 } else {
-                    innerNode.style.color = `rgba(220, 20, 60, 0.9)`;
-                    innerNode.style.textShadow = `0 0 5px rgba(220, 20, 60, 0.4)`;
+                    innerNode.style.color = `rgba(220, 20, 60, 0.95)`;
                 }
-                
-                // --- CORE CONVERGENCE LASER BEAM ---
-                const ray = document.createElement('div');
-                ray.className = 'center-ray';
-                ray.style.position = 'absolute';
-                ray.style.width = '1px';
-                ray.style.height = `${Math.min(120, originalRadius)}px`; 
-                ray.style.bottom = '50%';
-                ray.style.left = '50%';
-                ray.style.transformOrigin = 'bottom center';
-                ray.style.transform = `translate(-50%, 0) rotateX(90deg)`;
-                ray.style.background = isCore ?
-                    'linear-gradient(to top, rgba(220, 20, 60, 0.2), rgba(220, 20, 60, 0) 60%)' :
-                    'linear-gradient(to top, rgba(220, 20, 60, 0.4), rgba(220, 20, 60, 0) 60%)';
-                innerNode.appendChild(ray);
-                
-                // Trails only on outer shells; 2 per particle (was 4) for performance
-                if (!isCore) {
-                    for (let t = 1; t <= 2; t++) {
-                        const trail = document.createElement('div');
-                        trail.textContent = particleValue;
-                        trail.style.position = 'absolute';
-                        trail.style.color = `rgba(220, 20, 60, 0.8)`;
-                        trail.style.animation = `hologramFlow 2.5s infinite ease-in`;
-                        trail.style.animationDelay = `-${Math.random() * 2.5}s`;
-                        innerNode.appendChild(trail);
-                    }
-                }
+                // Removed: center-ray div, hologram trail divs, text-shadow blur
+                // (most expensive paint operations — cut for perf)
             } else if (isAmbient) {
                 innerNode.classList.add('ambient-particle');
-                innerNode.style.fontSize = `${Math.floor(Math.random() * 4) + 6}px`; // Extremely small (6-9px)
+                innerNode.style.fontSize = `${Math.floor(Math.random() * 4) + 6}px`;
                 innerNode.style.color = `rgba(255, 255, 255, 0.2)`;
                 innerNode.style.textShadow = 'none';
                 innerNode.style.animation = `ambientBlink ${Math.random() * 3 + 1.5}s infinite alternate ease-in-out`;
